@@ -1,0 +1,61 @@
+name: Deploy to Cloudflare Pages
+
+# Build the static export and deploy it to the `agentlead` Cloudflare Pages
+# project on every push to main (and on manual dispatch).
+#
+# SECURITY (public repo):
+#   - This file is public; it contains NO secrets — only references to
+#     encrypted GitHub Secrets (Settings → Secrets and variables → Actions).
+#   - Triggers are limited to `push` on main and manual `workflow_dispatch`.
+#     There is deliberately NO `pull_request` trigger, so a fork PR can never
+#     run with access to the Cloudflare token.
+#   - `permissions` is least-privilege: the job only reads the repo.
+#   - The deploy step is skipped (not failed) until CLOUDFLARE_API_TOKEN is set.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # Evaluated from a secret; used to gate the deploy step without ever
+      # exposing the value.
+      CF_TOKEN_SET: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build static export
+        run: npm run build
+
+      - name: Deploy to Cloudflare Pages
+        if: env.CF_TOKEN_SET == 'true'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy out --project-name=agentlead --branch=main
+
+      - name: Deploy skipped (token missing)
+        if: env.CF_TOKEN_SET != 'true'
+        run: echo "::warning::CLOUDFLARE_API_TOKEN secret is not set — built successfully but skipped the deploy. Add the secret in Settings → Secrets and variables → Actions to enable auto-deploy."

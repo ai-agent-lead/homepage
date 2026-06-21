@@ -26,11 +26,32 @@ npm run build    # outputs a static site to ./out
 
 ## Deploy
 
-`/out` is a plain static bundle. Point any static host at it:
+Live on **Cloudflare Pages**: https://agentlead.pages.dev (project `agentlead`).
 
-- **GitHub Pages** — push `/out` to the Pages branch (or use an action).
-- **Netlify** — build command `npm run build`, publish directory `out`.
-- **Vercel** — auto-detected; or serve `/out` from any CDN/S3 bucket.
+Manual deploy of the static bundle:
+
+```bash
+npm run build
+npx wrangler@latest pages deploy out --project-name agentlead --branch main
+```
+
+`/out` is host-agnostic, so Netlify (`publish: out`), Vercel, GitHub Pages, or any
+CDN/S3 bucket work too.
+
+### Continuous deployment (GitHub Actions → Cloudflare Pages)
+
+`.github/workflows/deploy.yml` builds and deploys on every push to `main`.
+
+**Required GitHub Secrets** (Settings → Secrets and variables → Actions) — never
+commit these; the public workflow only references them:
+
+| Secret | Value |
+| --- | --- |
+| `CLOUDFLARE_API_TOKEN` | A Cloudflare API token scoped to **Account → Cloudflare Pages → Edit** |
+| `CLOUDFLARE_ACCOUNT_ID` | The Cloudflare account id (`794ad0…`) |
+
+The deploy step is skipped (the build still runs) until `CLOUDFLARE_API_TOKEN`
+is present, so the workflow never fails for a missing secret.
 
 ## Structure
 
